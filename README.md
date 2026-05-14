@@ -80,10 +80,3 @@ The newer files split the content by audience and use case:
 
 That split reduces cognitive load without removing the general explainer.
 
-## Suggested Next Additions
-
-If this doc set keeps growing, the next useful documents would likely be:
-
-- a security and data-handling guide for prompts, tools, secrets, and session state
-- a retrieval-specific guide covering chunking, ranking, and source quality
-- a testing guide for agent workflows and tool loops

@@ -1,79 +1,72 @@
-# Codex / LLM Workflow for Engineers
+# Workflow: Engineer View
 
-This version is written for engineers who want a more implementation-oriented view of the stack and its tradeoffs.
+Same workflow as [workflow_overview.md](./workflow_overview.md), but written for engineers who want the implementation tradeoffs.
 
-The model names are still examples. The mechanics are the point.
+The product names are still placeholders. The mechanics are the point.
 
-Use this guide together with:
+Companion files in `deep_dives/`:
 
-- [workflow_overview.md](./workflow_overview.md) for the general explainer
-- [workflow_glossary.md](./workflow_glossary.md) for term definitions
-- [engineer_request_trace.md](./engineer_request_trace.md) for one traced request from prompt to final answer
-- [engineer_debugging_runbook.md](./engineer_debugging_runbook.md) for practical troubleshooting patterns
-- [provider_agnostic_schema_patterns.md](./provider_agnostic_schema_patterns.md) for common request and response shapes
+- [request_trace.md](./deep_dives/request_trace.md) — one turn traced end-to-end with concrete payloads
+- [schema_patterns.md](./deep_dives/schema_patterns.md) — provider-agnostic request/response shapes
+- [debugging_runbook.md](./deep_dives/debugging_runbook.md) — failure patterns by layer
 
 ![Engineer sequence flow](./diagrams/engineer-sequence-flow.svg)
 
-## System Boundary
+## System boundary
 
-The cleanest way to reason about the workflow is to split it into three layers:
+Three layers, kept separate or debugging gets painful:
 
-| Layer | Responsibility | Typical concerns |
+| Layer | Owns | Cares about |
 |---|---|---|
-| Local runtime | prompt capture, context assembly, tool execution, streaming UX, local state | file access, tool permissions, retries, session persistence |
-| API provider | auth, rate limits, request validation, routing, metering, streaming transport | quotas, model selection, caching, usage accounting |
-| Model service | tokenization, forward pass, decoding loop | latency, context length, KV cache, output quality |
+| **Agentic CLI** (local) | prompt capture, context assembly, tool execution, streaming UX, session state | file access, tool permissions, retries, persistence |
+| **API Provider** (remote) | auth, rate limits, validation, routing, metering, streaming transport | quotas, caching, usage accounting |
+| **Model** (remote) | tokenization, forward pass, decoding | latency, context length, KV cache, output quality |
 
-If you blur these layers together, debugging gets harder very quickly.
+## Request lifecycle
 
-## Request Lifecycle
+For one turn, the CLI usually does:
 
-For a single turn, the runtime usually performs something close to the following:
-
-1. Accept the latest user message.
-2. Resolve active system and developer instructions.
-3. Load enough prior conversation state to rebuild the working context.
-4. Attach relevant tool results, retrieved documents, or file excerpts if the workflow requires them.
-5. Serialize that state into the provider's request schema.
-6. Authenticate the request with the API key.
-7. Send the request to the provider.
-8. Receive a streamed response or a tool call request.
-9. If tools are requested, execute them in the runtime and send results back as another model turn.
-10. Persist the updated session state locally.
+1. Accept the user message.
+2. Resolve system + developer instructions.
+3. Load prior conversation state.
+4. Attach relevant tool results, retrieved docs, file excerpts.
+5. Serialize into the provider's request schema.
+6. Authenticate and send.
+7. Receive a stream — text or tool call.
+8. If tool: execute, send result back as a follow-up turn.
+9. Persist session state.
 
 Conceptually:
 
 ```text
 turn_n_request =
-  instructions
+    instructions
   + relevant_history
   + latest_user_input
   + tool_results_if_any
   + retrieval_context_if_any
 ```
 
-If you prefer a concrete walkthrough instead of abstract steps, see [engineer_request_trace.md](./engineer_request_trace.md).
+For a concrete walkthrough, see [request_trace.md](./deep_dives/request_trace.md).
 
-## What the Runtime Actually Owns
+## What the CLI actually owns
 
-Codex or a similar agent runtime is not doing inference. It is doing orchestration.
+The CLI isn't doing inference. It's doing orchestration:
 
-In practice, that orchestration often includes:
+- model + provider selection
+- how much history to include
+- truncation and summarization of old context
+- tool schema formatting
+- shell/file tool execution
+- retries and failure handling
+- incremental rendering
+- on-disk session state
 
-- selecting the model and provider
-- deciding how much history to include
-- truncating or summarizing old context
-- formatting tool schemas
-- executing shell or file tools
-- handling retries and failures
-- rendering incremental output to the user
-- storing session state on disk
+Most "agent behavior" is a property of CLI design, not raw model capability.
 
-This is why agent behavior is often more a property of runtime design than of the raw model alone.
+## Representative request shape
 
-## Representative Request Shape
-
-The exact schema depends on the provider, but the shape is usually conceptually similar to:
+Exact schema depends on the provider, but the shape is usually:
 
 ```json
 {
@@ -84,88 +77,60 @@ The exact schema depends on the provider, but the shape is usually conceptually 
     {"role": "tool", "content": "Contents of ./logs/app.log"},
     {"role": "user", "content": "Now suggest a fix"}
   ],
-  "tools": [
-    {"name": "read_file", "description": "Read a local file"}
-  ],
+  "tools": [{"name": "read_file", "description": "Read a local file"}],
   "stream": true
 }
 ```
 
-Important point: the "conversation" is usually just structured input for the current request. Memory is reconstructed state, not a persistent hidden mental model.
+The "conversation" is structured input for the current request. Memory is reconstructed state, not a hidden mental model.
 
-## Model Inference Path
+For more on schemas, see [schema_patterns.md](./deep_dives/schema_patterns.md).
 
-Once the request reaches the model service, the high-level path looks like this:
+## Why KV cache matters
 
-1. Convert text into tokens.
-2. Map tokens into embeddings.
-3. Run the embeddings through transformer layers.
-4. Produce logits for the next token.
-5. Apply decoding policy.
-6. Emit the selected token.
-7. Append that token to the sequence.
-8. Repeat until a stop condition is reached.
+Inside one request, transformer inference reuses cached key/value tensors for already-processed tokens. Generating token *n+1* is much cheaper than recomputing the whole sequence.
 
-This is inference. No model weights are being updated during your request.
+Provider-side **cached tokens** in the usage block are related but different — they refer to billing/serving optimizations for repeated prompt prefixes *across* requests, not the model's internal per-request KV cache.
 
-## Why KV Cache Matters
+## Tool calling is a control loop
 
-For engineers, one of the most useful mental models is the distinction between recomputing context and reusing intermediate state.
-
-During decoding, transformer inference can reuse cached key/value tensors for previously processed tokens. That is part of why generating token `n+1` is cheaper than recomputing the entire sequence from scratch inside the same request.
-
-Provider-side cached tokens are related but not identical. "Cached tokens" in usage reporting generally refer to billing or serving optimizations for repeated prompt prefixes across requests, not just the model's internal per-request KV cache.
-
-## Tool Calling Is a Control Loop
-
-With tools enabled, the workflow becomes a runtime-mediated control loop rather than a single request-response exchange.
+![Tool-calling loop](./diagrams/agent-tool-loop.svg)
 
 ```text
 user input
-  ->
-runtime sends context to model
-  ->
-model requests tool or emits answer
-  ->
-runtime executes tool
-  ->
-runtime returns tool result to model
-  ->
-model continues generation
-  ->
-runtime returns final answer
+  → CLI sends context to model
+  → model requests tool OR emits answer
+  → CLI executes tool
+  → CLI sends result back as next turn
+  → model continues
+  → CLI returns final answer
 ```
 
-The model is not usually opening files or running shell commands directly. It is producing structured output that the runtime interprets as a tool request.
+The model emits structured output the CLI interprets as a tool request. The model never touches your filesystem or shell directly.
 
-## Context Window Engineering
+## Context window engineering
 
-Context assembly is one of the main engineering levers in agent systems.
+The biggest lever. Typical contents:
 
-What goes into the window often includes:
-
-- system instructions
-- developer instructions
+- system + developer instructions
 - recent chat history
-- retrieved documentation
+- retrieved docs
 - file excerpts
 - tool outputs
 - the latest user message
 
 Tradeoffs:
 
-- more context can improve accuracy, but increases cost and latency
-- irrelevant context can degrade answer quality
-- long tool outputs can crowd out more useful tokens
-- summarization reduces size, but can destroy details needed for exact reasoning
+- more context → better accuracy, but more cost + latency
+- irrelevant context → worse quality
+- long tool outputs crowd out useful tokens
+- summarization shrinks size but loses detail
 
-In practice, many failures that look like "the model is dumb" are context engineering failures.
+Many "the model is dumb" complaints are context engineering bugs.
 
-## Latency and Cost Drivers
+## Latency and cost drivers
 
-The main factors are usually:
-
-- input token count
+- input token count (biggest hit on time-to-first-token)
 - output token count
 - model size and serving tier
 - tool round-trips
@@ -173,108 +138,67 @@ The main factors are usually:
 - streaming overhead
 - provider-side queuing or rate limits
 
-The first answer token is often delayed by prompt processing, scheduling, and any prefill cost for the input context. Long prompts tend to hurt time-to-first-token.
+Time-to-first-token usually reflects prompt processing and prefill cost.
 
-## Why the System Feels Stateful
+## Why the system feels stateful
 
-The model is stateless across separate requests.
-
-The runtime creates the illusion of state by doing two things:
+The model is stateless across requests. The CLI fakes statefulness by:
 
 1. persisting prior interaction state
-2. replaying or summarizing that state into the next request
+2. replaying or summarizing it into the next request
 
-This distinction matters because it explains common failures:
+This explains common failures:
 
-- old facts disappear because they were dropped from context
-- behavior changes because instructions were reordered or truncated
-- tool outputs influence later turns only if they were preserved in reconstructed context
+- old facts vanish because they fell out of context
+- behavior changes when instruction order changes
+- tool outputs only influence later turns if they were preserved
 
-## Failure Modes Engineers Actually Hit
+## Failure modes engineers actually hit
 
-### Context Overflow
+- **Context overflow** — too much history pushes critical info out
+- **Instruction collisions** — system/developer/user instructions conflict
+- **Tool schema drift** — CLI expects one format, model emits another
+- **Retrieval pollution** — low-quality retrieved docs add noise
+- **Non-deterministic outputs** — sampling or model updates shift results
+- **Streaming misinterpretation** — partial stream treated as final
 
-Too much history or tool output pushes important information out of the active window.
+Triage order: payload → instructions → included history → tool serialization → retrieval quality → token limits/truncation → finally, model reasoning. Many "LLM bugs" are packaging bugs. Full patterns in [debugging_runbook.md](./deep_dives/debugging_runbook.md).
 
-### Instruction Collisions
+## Minimum useful observability
 
-System, developer, and user instructions conflict, producing unstable behavior.
-
-### Tool Schema Drift
-
-The runtime expects one tool-call format while the model emits another.
-
-### Retrieval Pollution
-
-Low-quality retrieved documents add noise and reduce answer quality.
-
-### Non-Deterministic Outputs
-
-Sampling, model updates, or small prompt changes can shift outputs enough to break brittle downstream assumptions.
-
-### Streaming Misinterpretation
-
-A partial streamed answer is treated as final before the model or runtime has completed the full loop.
-
-## Debugging Checklist
-
-When behavior is off, inspect the system in this order:
-
-1. What exact payload was sent to the provider?
-2. Which instructions were active?
-3. What history was included or excluded?
-4. Were tool results serialized back into the next model turn correctly?
-5. Did retrieval inject irrelevant context?
-6. Did token limits or truncation drop key information?
-7. Was the observed issue model behavior, or runtime orchestration behavior?
-
-This ordering matters. Many "LLM bugs" are really packaging bugs.
-
-## What to Instrument
-
-If you are building or operating a system like this, the minimum useful observability surface is:
-
-- raw request payload shape, with secrets redacted
-- effective instructions after composition
-- token counts for input and output
-- truncation or summarization events
-- tool call requests and tool results
+- raw request payload (secrets redacted)
+- effective composed instructions
+- input + output token counts
+- truncation / summarization events
+- tool call requests and results
 - time to first token
 - total turn latency
-- provider errors, retries, and rate-limit events
+- provider errors, retries, rate-limit events
 
-Without this, debugging becomes guesswork.
+Without these, debugging is guesswork.
 
-## Token Usage Categories
+## Token usage categories
 
-Common categories include:
+- `input` — everything sent in
+- `output` — everything generated
+- `cached` — reused prompt prefix (provider-dependent)
+- `reasoning` — extra internal inference budget (provider-specific)
 
-- `input`: everything sent into the model
-- `output`: everything generated by the model
-- `cached`: reused prompt material if the provider supports prompt caching
-- `reasoning`: provider-specific extra inference budget or internal reasoning accounting
+Not standardized across providers. Read as provider-defined accounting.
 
-These labels are not fully standardized across providers, so they should be read as provider-defined accounting rather than universal architecture primitives.
+## Operational notes
 
-## Security and Operational Notes
-
-From an engineering standpoint, the API key and tool layer are usually more sensitive than the prompt itself.
-
-Points to keep in mind:
-
-- the API key grants service access and may incur billable usage
-- local tool execution can expose files, secrets, or infrastructure if poorly scoped
+- the API key grants billable service access
+- local tool execution can leak files, secrets, or infra if poorly scoped
 - session storage may contain sensitive prompts, outputs, and tool traces
-- retrieval systems can accidentally surface private data into model context
+- retrieval can surface private data into model context
 
-The model may be the visible part of the system, but the runtime and data path are where many operational risks live.
+The model is the visible part. The data path is where most operational risk lives.
 
-## Practical Takeaway
+## Takeaway
 
-For engineers, the right mental model is:
+- model = probabilistic token generator
+- provider = managed serving and accounting
+- Agentic CLI = orchestration that makes the workflow useful
 
-- the model is a probabilistic token generator
-- the provider is a managed serving and accounting layer
-- the runtime is the orchestration system that makes the whole workflow useful
-
-If you want better system behavior, the highest-leverage places to look are usually context assembly, tool design, retrieval quality, and request/response tracing.
+The highest-leverage places to improve behavior are context assembly, tool design, retrieval quality, and request/response tracing.

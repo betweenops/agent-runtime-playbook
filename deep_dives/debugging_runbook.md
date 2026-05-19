@@ -1,6 +1,6 @@
 # Engineer Debugging Runbook
 
-This runbook is for diagnosing bad behavior in a Codex-style agent workflow.
+This runbook is for diagnosing bad behavior in an Agentic CLI workflow (Codex, Claude Code, Open Code, Cursor, etc.).
 
 The goal is not to ask "Did the model mess up?" too early.
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1040" height="360" viewBox="0 0 1040 360">
   <rect width="1040" height="360" fill="#f7f4ed"/>
-  <text x="50" y="42" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#1e293b">Codex Request Flow</text>
+  <text x="50" y="42" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#1e293b">Agentic CLI Request Flow</text>
   <text x="50" y="68" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#475569">Local runtime on the left, remote provider and model on the right.</text>
 
   <rect x="50" y="110" width="180" height="82" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
@@ -8,7 +8,7 @@
   <text x="140" y="167" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#1e3a8a">Prompt in terminal</text>
 
   <rect x="290" y="95" width="220" height="112" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
-  <text x="400" y="128" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#166534">Codex Runtime</text>
+  <text x="400" y="128" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#166534">Agentic CLI</text>
   <text x="400" y="152" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#166534">Builds request</text>
   <text x="400" y="172" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#166534">Assembles context</text>
   <text x="400" y="192" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#166534">Streams response</text>
@@ -54,6 +54,6 @@
   <text x="802" y="138" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#334155">model request</text>
   <text x="801" y="202" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#334155">token stream</text>
   <text x="542" y="202" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#334155">response stream</text>
-  <text x="140" y="230" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#475569">You interact with Codex locally.</text>
+  <text x="140" y="230" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#475569">You interact with the CLI locally (Codex, Claude Code, Open Code, Cursor, etc.).</text>
   <text x="140" y="250" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#475569">Inference happens remotely at the model service.</text>
 </svg>

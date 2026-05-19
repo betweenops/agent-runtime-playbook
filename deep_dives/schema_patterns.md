@@ -1,6 +1,6 @@
 # Provider-Agnostic Schema Patterns
 
-This file shows common request and response patterns used in Codex-style or agent-style LLM systems.
+This file shows common request and response patterns used in Agentic CLI workflows. Examples are provider-agnostic; the same shapes show up whether you are looking at Codex, Claude Code, Open Code, Cursor, or any other agent-style client.
 
 These examples are intentionally provider-agnostic. Real APIs differ in naming and exact nesting, but the structural ideas are usually similar.
 

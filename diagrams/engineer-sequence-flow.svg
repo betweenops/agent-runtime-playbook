@@ -4,7 +4,7 @@
   <text x="40" y="68" font-family="Helvetica, Arial, sans-serif" font-size="14" fill="#475569">One agentic turn often spans multiple request-response hops, especially when tools are involved.</text>
 
   <text x="110" y="110" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#1e3a8a">User</text>
-  <text x="340" y="110" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#166534">Runtime</text>
+  <text x="340" y="110" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#166534">Agentic CLI</text>
   <text x="570" y="110" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#991b1b">Provider</text>
   <text x="790" y="110" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#5b21b6">Model</text>
   <text x="980" y="110" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#92400e">Tool</text>
